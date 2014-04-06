@@ -10,6 +10,7 @@ $(document).ready(function() {
     var canvas = document.getElementById('drawArea');
     var context = canvas.getContext('2d');
     var scene = [];
+    var players = [];
 
     function resizeCanvas() {
         var widthWanted = $(window).width();
@@ -26,59 +27,65 @@ $(document).ready(function() {
     // Init
     (function() {
         resizeCanvas();
-        scene.push(player(canvas.width * Math.random(), canvas.height * Math.random(), 20, 'blue', 2.0, 0));
-        scene.push(player(canvas.width * Math.random(), canvas.height * Math.random(), 20, 'purple', 2.0, 1));
-        scene.push(player(canvas.width * Math.random(), canvas.height * Math.random(), 20, 'yellow', 2.0, 1));
-        // scene.push(particle(100,100,2,3,0.5,20,'red'));
+
+        players.push(player('blue'));
+        players.push(player('purple'));
+        players.push(player('yellow'));
+        players.push(player('green'));
+        players.push(player('white'));
+        players.push(player('orange'));
+        players.push(player('pink'));
+        for (var idx in players) {
+            scene.push(players[idx]);
+        }
+
         animate();
         doLogic();
-
-        function foo() {
-            scene[0].fire(scene[1]);
-            setTimeout(foo, randFloat(500, 1000));
-        }
-        foo();
-
-        function bar() {
-            scene[1].fire(scene[2]);
-            setTimeout(bar, randFloat(500, 1000));
-        }
-        bar();
-
-        function baz() {
-            scene[2].fire(scene[0]);
-            setTimeout(baz, randFloat(500, 1000));
-        }
-        baz();
-
     })();
 
-    function player(x, y, r, color, vel, idx) {
+    function player(color, vel) {
         return {
-            idx: idx,
-            x: x,
-            y: y,
-            r: r,
+            x: canvas.width * Math.random(),
+            y: canvas.height * Math.random(),
+            r: 20,
             color: color,
-            dir: 1,
-            yDir: 1,
-            vel: vel,
+            xDir: Math.round(Math.random()) * 2 - 1,
+            yDir: Math.round(Math.random()) * 2 - 1,
+            vel: 1,
+            cooldown: 0,
+            maxCooldown: 30,
+            maxRange: Infinity,
+            // closestDist: Infinity,
+            health: 100,
             draw: function() {
+                // if ( this.health < 0 ) {
+                //     return;
+                // }
                 context.beginPath();
                 context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
                 context.fillStyle = this.color;
+
                 context.fill();
                 context.lineWidth = 2;
                 context.strokeStyle = '#000000';
                 context.stroke();
+
             },
             think: function() {
-                this.x += this.dir * this.vel;
+                // death
+                if ( this.health < 0 ) {
+                    scene.push(playerDeath(this));
+                    sceneDelete(this);
+                    playersDelete(this);
+                    return;
+                }
+                // movement
+                this.x += this.xDir * this.vel;
                 if (this.x > canvas.width) {
-                    this.dir = -1;
+                    this.xDir = -1;
                 }
                 if (this.x < 0) {
-                    this.dir = 1;
+                    this.xDir = 1;
                 }
                 this.y += this.yDir * this.vel;
                 if (this.y > canvas.height) {
@@ -86,6 +93,29 @@ $(document).ready(function() {
                 }
                 if (this.y < 0) {
                     this.yDir = 1;
+                }
+                // combat
+                this.cooldown -= 1;
+                if (this.cooldown < 0 && players.length > 1) {
+                    // targetting
+                    var closestDist = Infinity;
+                    var closestTarget;
+                    for (var idx in players) {
+                        var target = players[idx];
+                        if (target !== this) {
+                            var targetDist = distance(this, target);
+                            if (targetDist < closestDist) {
+                                closestDist = targetDist;
+
+                                closestTarget = target;
+                            }
+                        }
+                    }
+                    // attack!
+                    if (closestDist < this.maxRange) {
+                        this.fire(closestTarget);
+                        this.cooldown = this.maxCooldown;
+                    }
                 }
             },
             fire: function(targetPlayer) {
@@ -99,16 +129,22 @@ $(document).ready(function() {
             x: x,
             y: y,
             r: 4,
-            color: 'red',
+            color: 'yellow',
             dir: 1,
             yDir: 1,
-            vel: 4,
+            vel: 5,
             target: targetPlayer,
             draw: function() {
                 context.beginPath();
                 context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
+                // var gradient = context.createRadialGradient(this.x, this.y, 1, this.x, this.y, this.r);
+                // gradient.addColorStop(0, 'black');
+                // gradient.addColorStop(1, 'red');
                 context.fillStyle = this.color;
+                context.shadowBlur = this.r;
+                context.shadowColor = "red";
                 context.fill();
+                context.shadowBlur = 0;
                 // context.lineWidth = 2;
                 // context.strokeStyle = '#000000';
                 // context.stroke();
@@ -116,8 +152,13 @@ $(document).ready(function() {
             think: function() {
                 var deltaX = targetPlayer.x - this.x;
                 var deltaY = targetPlayer.y - this.y;
+                if ( targetPlayer.health < 0 ) {
+                    boom(this.x, this.y);
+                    sceneDelete(this);
+                }
                 if (Math.abs(deltaX) < targetPlayer.r + this.r && Math.abs(deltaY) < targetPlayer.r + this.r) {
                     boom(this.x, this.y);
+                    targetPlayer.health -= randFloat(5,10);
                     sceneDelete(this);
                 }
                 var factor = this.vel / Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2));
@@ -167,7 +208,7 @@ $(document).ready(function() {
         var minSpeed = 1;
         var maxSpeed = 5;
         var minScaleSpeed = 0.4;
-        var maxScaleSpeed = 1;
+        var maxScaleSpeed = 2;
         for (var angle = 0; angle < 360; angle += Math.round(360 / count)) {
             var speed = randFloat(minSpeed, maxSpeed);
 
@@ -181,7 +222,43 @@ $(document).ready(function() {
 
         }
     }
+    function playerDeath(player) {
+        return {
+            ttl: 20,
+            think: function() {},
+            draw: function() {
+                this.ttl -= 1;
+                if ( this.ttl < 0 ) {
+                    sceneDelete(this);
+                }
+                if ( this.ttl % 2 === 0 ) {
+                    boom(player.x + randFloat(10,100), player.y + randFloat(10, 100));
+                }
+            }
+        };
+    }
 
+    function winBanner(player) {
+        return {
+            think: function() {},
+            draw: function() {
+                context.font = "100px Fugaz One";
+                context.fillStyle = '#fbfcf7';
+                context.strokeStyle = '#000000';
+                context.fillText("Winner!", player.x - 200, player.y - 40);
+                context.strokeText("Winner!", player.x - 200, player.y - 40);
+            }
+        };
+    }
+    function playersDelete(obj) {
+        var delIdx;
+        for (var idx in players) {
+            if (players[idx] === obj) {
+                delIdx = idx;
+            }
+        }
+        players.splice(delIdx, 1);
+    }
     function sceneDelete(obj) {
         var delIdx;
         for (var idx in scene) {
@@ -191,7 +268,9 @@ $(document).ready(function() {
         }
         scene.splice(delIdx, 1);
     }
-
+    function distance(objA, objB) {
+        return Math.sqrt(Math.pow((objA.x - objB.x), 2) + Math.pow((objA.y - objB.y), 2));
+    }
     function randFloat(min, max) {
         return min + Math.random() * (max - min);
     }
@@ -200,7 +279,13 @@ $(document).ready(function() {
         for (var idx in scene) {
             scene[idx].think();
         }
-        setTimeout(doLogic, 1000 / 30);
+        if ( players.length == 1) {
+            scene.push(winBanner(players[0]));
+            players[0].health = Infinity;
+        }
+
+        setTimeout(doLogic, 1000 / 60);
+        
     }
 
     function animate() {
