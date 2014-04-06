@@ -224,7 +224,7 @@ $(document).ready(function() {
     }
     function playerDeath(player) {
         return {
-            ttl: 20,
+            ttl: 30,
             think: function() {},
             draw: function() {
                 this.ttl -= 1;
@@ -232,7 +232,7 @@ $(document).ready(function() {
                     sceneDelete(this);
                 }
                 if ( this.ttl % 2 === 0 ) {
-                    boom(player.x + randFloat(10,100), player.y + randFloat(10, 100));
+                    boom(player.x + randFloat(50,200), player.y + randFloat(50, 200));
                 }
             }
         };
