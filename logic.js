@@ -274,20 +274,30 @@ $(document).ready(function() {
     function randFloat(min, max) {
         return min + Math.random() * (max - min);
     }
+    var noBanner = true;
+
 
     function doLogic() {
         for (var idx in scene) {
             scene[idx].think();
         }
         if ( players.length == 1) {
-            scene.push(winBanner(players[0]));
-            players[0].health = Infinity;
+            if ( noBanner ) {
+                scene.push(winBanner(players[0]));
+                players[0].health = Infinity;
+                noBanner = false;
+            }
         }
 
         setTimeout(doLogic, 1000 / 60);
         
     }
-
+    function logObjects() {
+        console.log(players.length);
+        console.log(scene.length);
+        setTimeout(logObjects, 1000);
+    }
+    logObjects();
     function animate() {
         // update
 
