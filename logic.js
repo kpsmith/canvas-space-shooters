@@ -12,20 +12,20 @@ $(document).ready(function() {
     var scene = new Set();
     var players = new Set();
 
-    var maxParticles = 500;
+    var maxParticles = 1000;
     // var particles = [];
     // var particleIdx = 0;
     var dirty = false;
     var curPerfBucketStart = undefined;
     var ticks = 0;
     var storedDistances = {};
+    var widthWanted = $(window).width();
+    var heightWanted = $(window).height();
 
     function resizeCanvas() {
-        var widthWanted = $(window).width();
-        var heightWanted = $(window).height();
-
-        canvas.width = widthWanted;
-        canvas.height = heightWanted;
+        widthWanted = $(window).width();
+        heightWanted = $(window).height();
+        dirty = true;
 
         $("#drawArea").css("width", widthWanted);
         $("#drawArea").css("height", heightWanted);
@@ -265,31 +265,33 @@ $(document).ready(function() {
     var haveDisplayedWinBanner = false;
     function doLogic() {
         var tickStart = Date.now();
-        storedDistances = {};
-        scene.forEach(function(element) {
-            element.think();
-        });
-        if (players.size == 1 && !haveDisplayedWinBanner) {
-            players.forEach(function(player) {
-                player.health = 100;
-                scene.add(new WinBanner(player));
-                haveDisplayedWinBanner = true;
+        if (!document.hidden) {
+            scene.forEach(function(element) {
+                element.think();
             });
-        }
-        ticks += 1;
-        if (curPerfBucketStart === undefined) {
-            curPerfBucketStart = Date.now();
-        }
-        if (Date.now() - curPerfBucketStart > 1000) {
-            var msg = ticks + ' ticks per second';
-            if (ticks < 30) {
-                console.warn(msg);
-            } else {
-                console.log(msg);
+            if (players.size == 1 && !haveDisplayedWinBanner) {
+                players.forEach(function(player) {
+                    player.health = 100;
+                    scene.add(new WinBanner(player));
+                    haveDisplayedWinBanner = true;
+                });
             }
-            ticks = 0;
-            curPerfBucketStart = Date.now();
+            ticks += 1;
+            if (curPerfBucketStart === undefined) {
+                curPerfBucketStart = Date.now();
+            }
+            if (Date.now() - curPerfBucketStart > 1000) {
+                var msg = ticks + ' ticks per second';
+                if (ticks < 30) {
+                    console.warn(msg);
+                } else {
+                    console.log(msg);
+                }
+                ticks = 0;
+                curPerfBucketStart = Date.now();
+            }
         }
+
         var elapsed = Date.now() - tickStart;
         dirty = true;
         setTimeout(doLogic, (1000 / 60) - elapsed);
@@ -297,7 +299,11 @@ $(document).ready(function() {
 
     function animate() {
         // draw stuff
-        if (dirty) {
+        if (dirty && !document.hidden) {
+            if (canvas.width !== widthWanted || canvas.height !== heightWanted) {
+                canvas.width = widthWanted;
+                canvas.height = heightWanted;
+            }
             context.clearRect(0, 0, canvas.width, canvas.height);
             scene.forEach(function(element) {
                 element.draw();
@@ -313,6 +319,8 @@ $(document).ready(function() {
     // Init
     (function() {
         resizeCanvas();
+        canvas.width = widthWanted;
+        canvas.height = heightWanted;
         var numPlayers = 100;
         for (var i = 0; i < numPlayers; i++) {
             var hue = i % 256;
