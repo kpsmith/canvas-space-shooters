@@ -27,14 +27,16 @@ $(document).ready(function() {
     // Init
     (function() {
         resizeCanvas();
+        for (var i = 0; i < 10; i++){
+            players.push(player('blue'));
+            players.push(player('purple'));
+            players.push(player('yellow'));
+            players.push(player('green'));
+            players.push(player('white'));
+            players.push(player('orange'));
+            players.push(player('pink'));
+        }
 
-        players.push(player('blue'));
-        players.push(player('purple'));
-        players.push(player('yellow'));
-        players.push(player('green'));
-        players.push(player('white'));
-        players.push(player('orange'));
-        players.push(player('pink'));
         for (var idx in players) {
             scene.push(players[idx]);
         }
