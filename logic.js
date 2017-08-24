@@ -9,8 +9,15 @@ window.requestAnimFrame = (function(callback) {
 $(document).ready(function() {
     var canvas = document.getElementById('drawArea');
     var context = canvas.getContext('2d');
-    var scene = [];
-    var players = [];
+    var scene = new Set();
+    var players = new Set();
+
+    var maxParticles = 500;
+    // var particles = [];
+    // var particleIdx = 0;
+    var dirty = false;
+    var curPerfBucketStart = undefined;
+    var ticks = 0;
 
     function resizeCanvas() {
         var widthWanted = $(window).width();
@@ -27,20 +34,18 @@ $(document).ready(function() {
     // Init
     (function() {
         resizeCanvas();
-        for (var i = 0; i < 10; i++){
-            players.push(player('blue'));
-            players.push(player('purple'));
-            players.push(player('yellow'));
-            players.push(player('green'));
-            players.push(player('white'));
-            players.push(player('orange'));
-            players.push(player('pink'));
+        var numPlayers = 300;
+        for (var i = 0; i < numPlayers; i++) {
+            var hue = i % 256;
+            if (numPlayers < 255) {
+                hue = hue * (255 / numPlayers);
+            }
+            var color = 'hsl(' + hue + ', 80%, 60%)';
+            players.add(player(color));
         }
-
-        for (var idx in players) {
-            scene.push(players[idx]);
-        }
-
+        players.forEach(function(player) {
+        	scene.add(player);
+        })
         animate();
         doLogic();
     })();
@@ -65,45 +70,48 @@ $(document).ready(function() {
                 // }
                 context.beginPath();
                 context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
+
+                context.lineWidth = this.health / 5;
+                context.strokeStyle = 'hsla(189, 86%, 51%, 0.7)';
+                context.stroke();
+
                 context.fillStyle = this.color;
 
                 context.fill();
-                context.lineWidth = 2;
-                context.strokeStyle = '#000000';
-                context.stroke();
+
 
             },
             think: function() {
                 // death
-                if ( this.health < 0 ) {
-                    scene.push(playerDeath(this));
+                if (this.health < 0) {
+                    scene.add(playerDeath(this));
                     sceneDelete(this);
                     playersDelete(this);
                     return;
                 }
                 // movement
                 this.x += this.xDir * this.vel;
-                if (this.x > canvas.width) {
+                if (this.x + this.r > canvas.width) {
                     this.xDir = -1;
                 }
-                if (this.x < 0) {
+                if (this.x - this.r < 0) {
                     this.xDir = 1;
                 }
                 this.y += this.yDir * this.vel;
-                if (this.y > canvas.height) {
+                if (this.y + this.r > canvas.height) {
                     this.yDir = -1;
                 }
-                if (this.y < 0) {
+                if (this.y - this.r < 0) {
                     this.yDir = 1;
                 }
                 // combat
                 this.cooldown -= 1;
-                if (this.cooldown < 0 && players.length > 1) {
+                if (this.cooldown < 0 && players.size > 1) {
                     // targetting
                     var closestDist = Infinity;
                     var closestTarget;
-                    for (var idx in players) {
-                        var target = players[idx];
+
+                    players.forEach(function(target) {
                         if (target !== this) {
                             var targetDist = distance(this, target);
                             if (targetDist < closestDist) {
@@ -112,7 +120,7 @@ $(document).ready(function() {
                                 closestTarget = target;
                             }
                         }
-                    }
+                    }.bind(this));
                     // attack!
                     if (closestDist < this.maxRange) {
                         this.fire(closestTarget);
@@ -121,7 +129,7 @@ $(document).ready(function() {
                 }
             },
             fire: function(targetPlayer) {
-                scene.push(projectile(this.x, this.y, targetPlayer));
+                scene.add(projectile(this.x, this.y, targetPlayer));
             }
         };
     }
@@ -139,23 +147,15 @@ $(document).ready(function() {
             draw: function() {
                 context.beginPath();
                 context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
-                // var gradient = context.createRadialGradient(this.x, this.y, 1, this.x, this.y, this.r);
-                // gradient.addColorStop(0, 'black');
-                // gradient.addColorStop(1, 'red');
-                context.fillStyle = this.color;
                 context.shadowBlur = this.r;
                 context.shadowColor = "red";
                 context.fill();
                 context.shadowBlur = 0;
-                // context.lineWidth = 2;
-                // context.strokeStyle = '#000000';
-                // context.stroke();
             },
             think: function() {
                 var deltaX = targetPlayer.x - this.x;
                 var deltaY = targetPlayer.y - this.y;
                 if ( targetPlayer.health < 0 ) {
-                    boom(this.x, this.y);
                     sceneDelete(this);
                 }
                 if (Math.abs(deltaX) < targetPlayer.r + this.r && Math.abs(deltaY) < targetPlayer.r + this.r) {
@@ -170,8 +170,10 @@ $(document).ready(function() {
         };
     }
 
+
+
     function particle(x, y, xVel, yVel, scaleSpeed, r, color) {
-        return {
+        var p = {
             x: x,
             y: y,
             r: r,
@@ -196,17 +198,20 @@ $(document).ready(function() {
                 }
             }
         };
+        return p;
     }
 
     function boom(x, y) {
-        expl(x, y, "#525252");
-        expl(x, y, "#FFA318");
+        if (scene.size < maxParticles) {
+            expl(x, y, "#525252");
+            expl(x, y, "#FFA318");
+        }
     }
 
     function expl(x, y, color) {
         var minSize = 5;
         var maxSize = 15;
-        var count = 10;
+        var count = 5;
         var minSpeed = 1;
         var maxSpeed = 5;
         var minScaleSpeed = 0.4;
@@ -220,7 +225,7 @@ $(document).ready(function() {
             var scaleSpeed = randFloat(minScaleSpeed, maxScaleSpeed);
             var radius = randFloat(minSize, maxSize);
 
-            scene.push(particle(x, y, xVel, yVel, scaleSpeed, radius, color));
+            scene.add(particle(x, y, xVel, yVel, scaleSpeed, radius, color));
 
         }
     }
@@ -253,22 +258,24 @@ $(document).ready(function() {
         };
     }
     function playersDelete(obj) {
-        var delIdx;
-        for (var idx in players) {
-            if (players[idx] === obj) {
-                delIdx = idx;
-            }
-        }
-        players.splice(delIdx, 1);
+        players.delete(obj);
+        // var delIdx;
+        // for (var idx in players) {
+        //     if (players[idx] === obj) {
+        //         delIdx = idx;
+        //     }
+        // }
+        // players.splice(delIdx, 1);
     }
     function sceneDelete(obj) {
-        var delIdx;
-        for (var idx in scene) {
-            if (scene[idx] === obj) {
-                delIdx = idx;
-            }
-        }
-        scene.splice(delIdx, 1);
+        scene.delete(obj);
+        // var delIdx;
+        // for (var idx in scene) {
+        //     if (scene[idx] === obj) {
+        //         delIdx = idx;
+        //     }
+        // }
+        // scene.splice(delIdx, 1);
     }
     function distance(objA, objB) {
         return Math.sqrt(Math.pow((objA.x - objB.x), 2) + Math.pow((objA.y - objB.y), 2));
@@ -277,29 +284,54 @@ $(document).ready(function() {
         return min + Math.random() * (max - min);
     }
 
+    var haveDisplayedWinBanner = false;
     function doLogic() {
-        for (var idx in scene) {
-            scene[idx].think();
+        scene.forEach(function(element) {
+            element.think();
+        })
+        if (players.size == 1 && !haveDisplayedWinBanner) {
+            players.forEach(function(player) {
+                player.health = Infinity;
+                scene.add(winBanner(player));
+                haveDisplayedWinBanner = true;
+            });
         }
-        if ( players.length == 1) {
-            scene.push(winBanner(players[0]));
-            players[0].health = Infinity;
+        ticks += 1;
+        if (curPerfBucketStart === undefined) {
+            curPerfBucketStart = Date.now();
         }
-
+        if (Date.now() - curPerfBucketStart > 1000) {
+            var msg = ticks + ' ticks per second';
+            if (ticks < 30) {
+                console.warn(msg);
+            } else {
+                console.log(msg);
+            }
+            ticks = 0;
+            curPerfBucketStart = Date.now();
+        }
+        dirty = true;
         setTimeout(doLogic, 1000 / 60);
-        
     }
 
     function animate() {
         // update
 
         // clear
-        context.clearRect(0, 0, canvas.width, canvas.height);
+        
 
         // draw stuff
-        for (var idx in scene) {
-            scene[idx].draw();
+        if (dirty) {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            scene.forEach(function(element) {
+                element.draw();
+            });
+            dirty = false;
         }
+
+        // for (var idx in scene) {
+        //     scene[idx].draw();
+        // }
 
         // request new frame
         requestAnimFrame(function() {
