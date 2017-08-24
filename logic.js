@@ -12,7 +12,7 @@ $(document).ready(function() {
     var scene = new Set();
     var players = new Set();
 
-    var maxParticles = 1000;
+    var maxParticles = 10000;
     // var particles = [];
     // var particleIdx = 0;
     var dirty = false;
@@ -41,17 +41,23 @@ $(document).ready(function() {
         this.xDir = Math.round(Math.random()) * 2 - 1;
         this.yDir = Math.round(Math.random()) * 2 - 1;
         this.vel = Math.random() + .5;
-        this.cooldown = 0;
-        this.maxCooldown = 30;
+        this.maxCooldown = 60;
+        this.cooldown = Math.floor(Math.random() * this.maxCooldown);
         this.maxRange = Math.max(canvas.height, canvas.width);
         this.health = 100;
+    }
+    Player.prototype.shieldWidth = function() {
+        return this.health / 5;
+    }
+    Player.prototype.effectiveRadius = function() {
+        return this.r + this.shieldWidth();
     }
     Player.prototype.draw = function() {
         // circle
         context.beginPath();
         context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
         // stroke (shield)
-        context.lineWidth = this.health / 5;
+        context.lineWidth = this.shieldWidth() * 2;
         context.strokeStyle = 'hsla(189, 86%, 51%, 0.5)';
         context.stroke();
         // fill
@@ -68,17 +74,17 @@ $(document).ready(function() {
         }
         // movement
         this.x += this.xDir * this.vel;
-        if (this.x + this.r > canvas.width) {
+        if (this.x + this.effectiveRadius() > canvas.width) {
             this.xDir = -1;
         }
-        if (this.x - this.r < 0) {
+        if (this.x - this.effectiveRadius() < 0) {
             this.xDir = 1;
         }
         this.y += this.yDir * this.vel;
-        if (this.y + this.r > canvas.height) {
+        if (this.y + this.effectiveRadius() > canvas.height) {
             this.yDir = -1;
         }
-        if (this.y - this.r < 0) {
+        if (this.y - this.effectiveRadius() < 0) {
             this.yDir = 1;
         }
         // combat
@@ -146,8 +152,8 @@ $(document).ready(function() {
             sceneDelete(this);
             return;
         }
-        if (Math.abs(deltaX) < this.target.r + this.r && Math.abs(deltaY) < this.target.r + this.r) {
-            boom(this.x, this.y);
+        if (Math.abs(deltaX) < this.target.effectiveRadius() + this.r && Math.abs(deltaY) < this.target.effectiveRadius() + this.r) {
+            projectileHit(this.x, this.y);
             this.target.health -= randFloat(5,10);
             sceneDelete(this);
             return;
@@ -159,7 +165,7 @@ $(document).ready(function() {
 
 
 
-    function Particle(x, y, xVel, yVel, scaleSpeed, r, color) {
+    function Particle(x, y, xVel, yVel, scaleSpeed, r, color, delay) {
         this.x = x;
         this.y = y;
         this.r = r;
@@ -167,26 +173,34 @@ $(document).ready(function() {
         this.xVel = xVel;
         this.yVel = yVel;
         this.scaleSpeed = scaleSpeed;
+        this.delay = delay;
+        this.aliveTicks = 0;
     }
     Particle.prototype.draw = function() {
-        context.beginPath();
-        context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
-        context.fillStyle = this.color;
-        context.fill();
+        if (this.aliveTicks > this.delay) {
+            context.beginPath();
+            context.arc(this.x, this.y, this.r, 0, 2 * Math.PI, false);
+            context.fillStyle = this.color;
+            context.fill();
+        }
     }
     Particle.prototype.think = function() {
         // move
         this.x += this.xVel;
         this.y += this.yVel;
         // shrink
+        // if (this.aliveTicks > this.delay) {
+        //     this.r -= this.scaleSpeed;
+        // }
         this.r -= this.scaleSpeed;
         if (this.r < 0) {
             sceneDelete(this);
         }
+        this.aliveTicks += 1;
     }
 
     function PlayerDeath(player) {
-        this.maxTTL = 30;
+        this.maxTTL = 10;
         this.ttl = this.maxTTL;
         this.player = player;
         this.r = 10;
@@ -197,8 +211,8 @@ $(document).ready(function() {
         if ( this.ttl < 0 ) {
             sceneDelete(this);
         }
-        if ( this.ttl % 2 === 0 ) {
-            boom(this.player.x + randFloat(50,200), this.player.y + randFloat(50, 200));
+        if ( this.ttl % 1 === 0 ) {
+            boom(this.player.x + randFloat(0,50), this.player.y + randFloat(0, 50));
         }
     }
     PlayerDeath.prototype.draw = function() {}
@@ -216,31 +230,44 @@ $(document).ready(function() {
         context.strokeText("Winner!", this.player.x - 200, this.player.y - 40);
     }
 
+    function projectileHit(x, y) {
+        if (scene.size < maxParticles) {
+            expl(x, y, "#ff0", .5);
+        }
+    }
+
     function boom(x, y) {
         if (scene.size < maxParticles) {
-            expl(x, y, "#525252");
-            expl(x, y, "#FFA318");
+            var col1 = "#525252";
+            // col1 = "#EB871C";
+            expl(x, y, col1, 2);
+                        expl(x, y, "#EB871C", 1.5);
+
+            expl(x, y, "#FFA318", 1);
         }
     }
 
-    function expl(x, y, color) {
-        var minSize = 5;
-        var maxSize = 15;
-        var count = 5;
-        var minSpeed = 1;
+    function expl(x, y, color, scale) {
+        var minSize = 5 * scale;
+        var maxSize = 15 * scale;
+        var count = 10;
+        var minSpeed = 2;
         var maxSpeed = 5;
-        var minScaleSpeed = 0.4;
-        var maxScaleSpeed = 2;
+        var minScaleSpeed = 0.4 * scale;
+        var maxScaleSpeed = 2 * scale;
+        var biasX = (Math.random() - 0.5) * 2;
+        var biasY = (Math.random() - 0.5) * 2;
+        var maxDelay = 10;
         for (var angle = 0; angle < 360; angle += Math.round(360 / count)) {
             var speed = randFloat(minSpeed, maxSpeed);
-            var xVel = speed * Math.cos(angle * Math.PI / 180.0);
-            var yVel = speed * Math.sin(angle * Math.PI / 180.0);
+            var xVel = speed * Math.cos(angle * Math.PI / 180.0) + biasX;
+            var yVel = speed * Math.sin(angle * Math.PI / 180.0) + biasY;
             var scaleSpeed = randFloat(minScaleSpeed, maxScaleSpeed);
             var radius = randFloat(minSize, maxSize);
-            scene.add(new Particle(x, y, xVel, yVel, scaleSpeed, radius, color));
+            var delay = randFloat(0, maxDelay);
+            scene.add(new Particle(x, y, xVel, yVel, scaleSpeed, radius, color, delay));
         }
     }
-
 
     function playersDelete(obj) {
         players.delete(obj);
@@ -261,13 +288,11 @@ $(document).ready(function() {
     function randFloat(min, max) {
         return min + Math.random() * (max - min);
     }
-    var noBanner = true;
-
 
     var haveDisplayedWinBanner = false;
     function doLogic() {
         var tickStart = Date.now();
-        if (!document.hidden) {
+        if (!document.hidden && !dirty) {
             scene.forEach(function(element) {
                 element.think();
             });
@@ -298,12 +323,7 @@ $(document).ready(function() {
         dirty = true;
         setTimeout(doLogic, (1000 / 60) - elapsed);
     }
-    function logObjects() {
-        console.log(players.length);
-        console.log(scene.length);
-        setTimeout(logObjects, 1000);
-    }
-    logObjects();
+
     function animate() {
         // draw stuff
         if (dirty && !document.hidden) {
