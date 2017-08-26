@@ -348,11 +348,11 @@ $(document).ready(function() {
         resizeCanvas();
         canvas.width = widthWanted;
         canvas.height = heightWanted;
-        var numPlayers = 100;
+        var numPlayers = 300;
         for (var i = 0; i < numPlayers; i++) {
-            var hue = i % 256;
-            if (numPlayers < 255) {
-                hue = hue * (255 / numPlayers);
+            var hue = i % 360;
+            if (numPlayers < 360) {
+                hue = hue * (360 / numPlayers);
             }
             var color = 'hsl(' + hue + ', 80%, 60%)';
             players.add(new Player(i, color));
