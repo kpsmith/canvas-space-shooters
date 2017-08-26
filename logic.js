@@ -241,8 +241,7 @@ $(document).ready(function() {
             var col1 = "#525252";
             // col1 = "#EB871C";
             expl(x, y, col1, 2);
-                        expl(x, y, "#EB871C", 1.5);
-
+            expl(x, y, "#EB871C", 1.5);
             expl(x, y, "#FFA318", 1);
         }
     }
@@ -250,7 +249,7 @@ $(document).ready(function() {
     function expl(x, y, color, scale) {
         var minSize = 5 * scale;
         var maxSize = 15 * scale;
-        var count = 10;
+        var count = 100;
         var minSpeed = 2;
         var maxSpeed = 5;
         var minScaleSpeed = 0.4 * scale;
@@ -348,7 +347,7 @@ $(document).ready(function() {
         resizeCanvas();
         canvas.width = widthWanted;
         canvas.height = heightWanted;
-        var numPlayers = 300;
+        var numPlayers = 50;
         for (var i = 0; i < numPlayers; i++) {
             var hue = i % 360;
             if (numPlayers < 360) {
